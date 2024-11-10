@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Force Directed Graph</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    .link {
+      stroke: #999;
+    }
+    .node circle {
+      fill: #69b3a2;
+      stroke: #fff;
+      stroke-width: 1.5px;
+    }
+    .node text {
+      font-size: 17px;
+      pointer-events: none;
+      font-family: Arial, sans-serif;
+    }
+    svg {
+      background-color: white; 
+      border: 1px solid lightgray;
+      background-image: radial-gradient(circle, #8F8F8F 1px, transparent 1px);
+      background-size: 30px 30px; 
+    }
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+      font-family: Arial, sans-serif;
+      fill: #333;
+    }
+    .subtitle {
+      font-size: 14px;
+      font-family: Arial, sans-serif;
+      fill: #666;
+    }
+  </style>
+</head>
+<body>
+  <svg width="800" height="600"></svg>
+
+  <script>
+    const width = 2530;
+    const height = 1200;
+
+    const svg = d3.select("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    
+    svg.append("text")
+        .attr("class", "title")
+        .attr("x", width / 2)
+        .attr("y", 40)
+        .attr("text-anchor", "middle")
+        .text("Airport Routes Force-Directed Graph: Rutas más frecuentes entre aeropuertos");
+
+    
+    svg.append("text")
+        .attr("class", "subtitle")
+        .attr("x", width / 2)
+        .attr("y", 70)
+        .attr("text-anchor", "middle")
+        .text("Fuente: Open Flights Route Database (https://www.kaggle.com/datasets/open-flights/flight-route-database). Vuelos registrados por openflights.org hasta 2012");
+
+    
+    d3.json("airport_routes_graph.json").then(function(data) {
+      
+      // seleccionar solo los X links mas fuertes
+      const topLinks = data.links.sort((a, b) => b.count - a.count).slice(0, 40);
+
+      
+      const topNodeIds = new Set();
+      topLinks.forEach(link => {
+        topNodeIds.add(link.source);
+        topNodeIds.add(link.target);
+      });
+
+      // filtrar nodos en base a links
+      const topNodes = data.nodes.filter(node => topNodeIds.has(node.id));
+
+      // calcular numero de conexiones de cada nodo
+      const nodeDegree = {};
+      topLinks.forEach(link => {
+        nodeDegree[link.source] = (nodeDegree[link.source] || 0) + 1;
+        nodeDegree[link.target] = (nodeDegree[link.target] || 0) + 1;
+      });
+
+      // escalar nodos
+      const sizeScale = d3.scaleLinear()
+        .domain([1, d3.max(Object.values(nodeDegree))])  // grado minimo y maximo
+        .range([5, 20]);  // Node size range
+
+      // opacidad de los links
+      const opacityScale = d3.scaleLinear()
+        .domain([1, d3.max(topLinks, d => d.count)])  // min y max
+        .range([0.2, 1]);  // rango de opacidad de 0.2 a 1
+
+      // parametros del grafico
+      const simulation = d3.forceSimulation(topNodes)
+          .force("link", d3.forceLink(topLinks).id(d => d.id).distance(550))
+          .force("charge", d3.forceManyBody().strength(-300))
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("x", d3.forceX(width / 2).strength(0.05))
+          .force("y", d3.forceY(height / 2).strength(0.05))
+          .force("collide", d3.forceCollide().radius(d => sizeScale(nodeDegree[d.id]) + 2)); 
+
+      // dibujar los links
+      const link = svg.selectAll("line")
+          .data(topLinks)
+          .enter().append("line")
+          .attr("stroke", "#999")
+          .attr("stroke-width", d => Math.sqrt(d.count) * 1.25)
+          .attr("stroke-opacity", d => opacityScale(d.count));  // Set opacity based on count
+
+      // dibujar los nodos
+      const node = svg.selectAll(".node")
+          .data(topNodes)
+          .enter().append("g")
+          .attr("class", "node")
+          .call(d3.drag()
+              .on("start", dragstarted)
+              .on("drag", dragged)
+              .on("end", dragended));
+
+      node.append("circle")
+          .attr("r", d => sizeScale(nodeDegree[d.id]))  // Radius based on degree
+          .attr("fill", "steelblue");
+
+      // añadir etiquetas a los nodos
+      node.append("text")
+          .attr("dx", d => sizeScale(nodeDegree[d.id]) + 5)
+          .attr("dy", 3)
+          .text(d => d.id);
+
+      // actualizar posicion en cada tick de la simulacion
+      simulation.on("tick", () => {
+        link
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+
+        node
+          .attr("transform", d => `translate(${d.x},${d.y})`);
+          
+      });
+
+      // funciones de arrastre
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+    });
+  </script>
+</body>
+</html>
