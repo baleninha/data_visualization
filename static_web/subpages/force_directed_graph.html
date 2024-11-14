@@ -112,7 +112,7 @@
           .enter().append("line")
           .attr("stroke", "#999")
           .attr("stroke-width", d => Math.sqrt(d.count) * 1.25)
-          .attr("stroke-opacity", d => opacityScale(d.count));  // Set opacity based on count
+          .attr("stroke-opacity", d => opacityScale(d.count));  
 
       // dibujar los nodos
       const node = svg.selectAll(".node")
@@ -125,7 +125,7 @@
               .on("end", dragended));
 
       node.append("circle")
-          .attr("r", d => sizeScale(nodeDegree[d.id]))  // Radius based on degree
+          .attr("r", d => sizeScale(nodeDegree[d.id]))  
           .attr("fill", "steelblue");
 
       // añadir etiquetas a los nodos
